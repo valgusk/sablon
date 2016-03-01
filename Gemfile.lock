@@ -4,18 +4,27 @@ PATH
     sablon (0.0.19)
       nokogiri (>= 1.6.0)
       redcarpet (>= 3.2)
+      ruby-imagespec (~> 0.4.1)
       rubyzip (>= 1.1)
 
 GEM
   remote: https://rubygems.org/
   specs:
+    coderay (1.1.0)
+    method_source (0.8.2)
     mini_portile2 (2.0.0)
     minitest (5.8.0)
-    nokogiri (1.6.7.1)
+    nokogiri (1.6.7.2)
       mini_portile2 (~> 2.0.0.rc2)
+    pry (0.10.3)
+      coderay (~> 1.1.0)
+      method_source (~> 0.8.1)
+      slop (~> 3.4)
     rake (10.4.2)
-    redcarpet (3.3.3)
-    rubyzip (1.1.7)
+    redcarpet (3.3.4)
+    ruby-imagespec (0.4.1)
+    rubyzip (1.2.0)
+    slop (3.6.0)
     xml-simple (1.1.5)
 
 PLATFORMS
@@ -24,9 +33,10 @@ PLATFORMS
 DEPENDENCIES
   bundler (>= 1.6)
   minitest (~> 5.4)
+  pry
   rake (~> 10.0)
   sablon!
   xml-simple
 
 BUNDLED WITH
-   1.10.6
+   1.11.2

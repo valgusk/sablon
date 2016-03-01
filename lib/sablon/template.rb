@@ -20,21 +20,51 @@ module Sablon
     def render(context, properties = {})
       Sablon::Numbering.instance.reset!
       Zip.sort_entries = true # required to process document.xml before numbering.xml
+
+      # parse resources
+      resources = {}
+
+      resources_xml = Zip::File.open(@path).get_entry('word/_rels/document.xml.rels').get_input_stream.read
+      resources_document = Nokogiri::XML.parse(resources_xml)
+      resource_collection = resources_document.search('Relationships').first
+      relationships = resource_collection.search('Relationship')
+      relationships.each { |r| resources[r['Id'].to_s] = r }
+      # parse resources end
+
       Zip::OutputStream.write_buffer(StringIO.new) do |out|
-        Zip::File.open(@path).each do |entry|
+        opened_zip = Zip::File.open(@path)
+        opened_zip.each do |entry|
           entry_name = entry.name
           out.put_next_entry(entry_name)
           content = entry.get_input_stream.read
           if entry_name == 'word/document.xml'
-            out.write(process(Processor::Document, content, context, properties))
+            out.write(process(Processor::Document, content, context, properties, resources))
           elsif entry_name =~ /word\/header\d*\.xml/ || entry_name =~ /word\/footer\d*\.xml/
-            out.write(process(Processor::Document, content, context))
+            out.write(process(Processor::Document, content, context, {}, resources))
           elsif entry_name == 'word/numbering.xml'
             out.write(process(Processor::Numbering, content))
+            # out.write(Processor.process_rels(Nokogiri::XML(content), resources).to_xml)
           else
             out.write(content)
           end
         end
+
+        resources.each do |id, r|
+          next if r.is_a?(Nokogiri::XML::Node)
+
+          xml = %{<Relationship Id="#{ id }" Target="media/#{ id }.jpg" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"/>}
+          node = Nokogiri::XML::parse(xml).children.first
+          resource_collection.add_child(node)
+
+          out.put_next_entry("word/media/#{ id }.jpg")
+          out.write(File.read(r.data))
+          # resources[id] = node
+        end
+
+        out.put_next_entry('word/_rels/document.xml.rels')
+        out.write(resource_collection.to_xml)
+
+        binding.pry
       end
     end
 

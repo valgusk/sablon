@@ -40,6 +40,45 @@ module Sablon
       end
     end
 
+    class Image < Struct.new(:source, :data)
+      require 'image_spec'
+
+      def initialize(source)
+        self.source = source
+        case source
+        when ::File
+          self.data = source
+        when ::Pathname, ::String
+          self.data = File.open(source, 'rb')
+        end
+      end
+
+      def spec
+        ImageSpec.new(data)
+      end
+
+      def self.id
+        :image
+      end
+
+      def self.wraps?(source)
+        case source
+        when ::String
+          self.wraps?(Pathname.new(source))
+        when ::Pathname
+          source.exist? && source.file? && self.wraps?(File.open(source))
+        when ::File
+          ImageSpec.new(source)
+        end
+      rescue ImageSpec::Error
+        false
+      end
+
+      def append_to(paragraph, display_node)
+        false
+      end
+    end
+
     class String < Struct.new(:string)
       include Sablon::Content
       def self.id; :string end
@@ -114,5 +153,6 @@ module Sablon
     register Sablon::Content::WordML
     register Sablon::Content::Markdown
     register Sablon::Content::HTML
+    register Sablon::Content::Image
   end
 end
