@@ -35,16 +35,22 @@ module Sablon
         opened_zip = Zip::File.open(@path)
         opened_zip.each do |entry|
           entry_name = entry.name
-          out.put_next_entry(entry_name)
+
           content = entry.get_input_stream.read
           if entry_name == 'word/document.xml'
+            out.put_next_entry(entry_name)
             out.write(process(Processor::Document, content, context, properties, resources))
           elsif entry_name =~ /word\/header\d*\.xml/ || entry_name =~ /word\/footer\d*\.xml/
+            out.put_next_entry(entry_name)
             out.write(process(Processor::Document, content, context, {}, resources))
           elsif entry_name == 'word/numbering.xml'
+            out.put_next_entry(entry_name)
             out.write(process(Processor::Numbering, content))
             # out.write(Processor.process_rels(Nokogiri::XML(content), resources).to_xml)
+          elsif entry_name == 'word/_rels/document.xml.rels'
+            false
           else
+            out.put_next_entry(entry_name)
             out.write(content)
           end
         end
@@ -52,17 +58,17 @@ module Sablon
         resources.each do |id, r|
           next if r.is_a?(Nokogiri::XML::Node)
 
-          xml = %{<Relationship Id="#{ id }" Target="media/#{ id }.jpg" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"/>}
+          xml = %{<Relationship Id="#{ id }" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/auto#{ id.downcase }.png"/>}
           node = Nokogiri::XML::parse(xml).children.first
           resource_collection.add_child(node)
 
-          out.put_next_entry("word/media/#{ id }.jpg")
+          out.put_next_entry(File.join('word', 'media', "auto#{ id.downcase }.png"))
           out.write(File.read(r.data))
           # resources[id] = node
         end
 
-        out.put_next_entry('word/_rels/document.xml.rels')
-        out.write(resource_collection.to_xml)
+        out.put_next_entry(File.join('word', '_rels', 'document.xml.rels'))
+        out.write(resources_document.to_xml(indent: 0).gsub("\n",""))
 
         binding.pry
       end
