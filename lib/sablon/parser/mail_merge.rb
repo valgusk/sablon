@@ -3,7 +3,7 @@ module Sablon
     class MailMerge
       attr_accessor :resources
 
-      def initialize(resources = {})
+      def initialize(resources)
         self.resources = resources
       end
 
@@ -44,7 +44,6 @@ module Sablon
           self.resources = resources
           @node = node
           @raw_expression = node.at_xpath('.//pic:cNvPr', 'pic' => PICTURE_NS_URI)['name'].strip
-          binding.pry unless valid?
         end
 
 

@@ -39,10 +39,10 @@ module Sablon
           content = entry.get_input_stream.read
           if entry_name == 'word/document.xml'
             out.put_next_entry(entry_name)
-            out.write(process(Processor::Document, content, context, properties, resources))
+            out.write(process(Processor::Document, content, context, resources, properties))
           elsif entry_name =~ /word\/header\d*\.xml/ || entry_name =~ /word\/footer\d*\.xml/
             out.put_next_entry(entry_name)
-            out.write(process(Processor::Document, content, context, {}, resources))
+            out.write(process(Processor::Document, content, context, resources))
           elsif entry_name == 'word/numbering.xml'
             out.put_next_entry(entry_name)
             out.write(process(Processor::Numbering, content))
@@ -69,8 +69,6 @@ module Sablon
 
         out.put_next_entry(File.join('word', '_rels', 'document.xml.rels'))
         out.write(resources_document.to_xml(indent: 0).gsub("\n",""))
-
-        binding.pry
       end
     end
 

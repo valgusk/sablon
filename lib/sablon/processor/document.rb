@@ -2,15 +2,15 @@
 module Sablon
   module Processor
     class Document
-      def self.process(xml_node, context, properties = {}, resources = {})
+      def self.process(xml_node, context, resources, properties = {})
         processor = new(parser(resources))
         processor.manipulate xml_node, Sablon::Context.transform(context)
         processor.write_properties xml_node, properties if properties.any?
         xml_node
       end
 
-      def self.parser(resources = {})
-        @parser ||= Sablon::Parser::MailMerge.new(resources)
+      def self.parser(resources)
+        Sablon::Parser::MailMerge.new(resources)
       end
 
       def initialize(parser)
@@ -18,7 +18,7 @@ module Sablon
       end
 
       def manipulate(xml_node, context)
-        operations = build_operations(@parser.parse_fields(xml_node))
+        operations = build_operations(@parser.parse_fields(xml_node), @parser.resources)
         operations.each do |step|
           step.evaluate context
         end
@@ -34,8 +34,8 @@ module Sablon
       end
 
       private
-      def build_operations(fields)
-        OperationConstruction.new(fields).operations
+      def build_operations(fields, resources)
+        OperationConstruction.new(fields, resources).operations
       end
 
       def cleanup(xml_node)
@@ -49,7 +49,7 @@ module Sablon
         end
       end
 
-      class Block < Struct.new(:start_field, :end_field)
+      class Block < Struct.new(:start_field, :end_field, :resources)
         def self.enclosed_by(start_field, end_field)
           @blocks ||= [RowBlock, ParagraphBlock, InlineParagraphBlock]
           block_class = @blocks.detect { |klass| klass.encloses?(start_field, end_field) }
@@ -59,7 +59,7 @@ module Sablon
         def process(context)
           replaced_node = Nokogiri::XML::Node.new("tmp", start_node.document)
           replaced_node.children = Nokogiri::XML::NodeSet.new(start_node.document, body.map(&:dup))
-          Processor::Document.process replaced_node, context
+          Processor::Document.process replaced_node, context, resources
           replaced_node.children
         end
 
@@ -142,8 +142,9 @@ module Sablon
       end
 
       class OperationConstruction
-        def initialize(fields)
+        def initialize(fields, resources)
           @fields = fields
+          @resources = resources
           @operations = []
         end
 
@@ -185,7 +186,9 @@ module Sablon
           end
 
           if end_field
-            Block.enclosed_by start_field, end_field
+            block = Block.enclosed_by start_field, end_field
+            block.resources = @resources
+            block
           else
             raise TemplateError, "Could not find end field for «#{start_field.expression}». Was looking for «#{end_expression}»"
           end
