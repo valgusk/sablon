@@ -75,6 +75,8 @@ module Sablon
             src_rect_node['r'] = format_percent(new_off_x[1].to_f / new_image_x.to_f) if new_off_x[1] != 0
             src_rect_node['t'] = format_percent(new_off_y[0].to_f / new_image_y.to_f) if new_off_y[0] != 0
             src_rect_node['b'] = format_percent(new_off_y[1].to_f / new_image_y.to_f) if new_off_y[1] != 0
+
+            property_node['descr'] =  property_node['descr'].sub(META_PATTERN, '')
           end
 
           def format_percent(number)
@@ -91,7 +93,7 @@ module Sablon
           end
 
           def newy
-            configuration['width'] == 'auto' ? auto_y : y
+            configuration['height'] == 'auto' ? auto_y : y
           end
 
           def newx
@@ -127,7 +129,7 @@ module Sablon
           end
 
           def new_image_y
-            configuration['width'] == 'rect' ? y : auto_y
+            configuration['height'] == 'rect' ? y : auto_y
           end
 
           def new_off_x

@@ -58,11 +58,12 @@ module Sablon
         resources.each do |id, r|
           next if r.is_a?(Nokogiri::XML::Node)
 
-          xml = %{<Relationship Id="#{ id }" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/auto#{ id.downcase }.png"/>}
+          name = "auto#{ id.downcase }.#{ r.spec.content_type[/png|jpeg|bmp/] }"
+          xml = %{<Relationship Id="#{ id }" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/#{ name }"/>}
           node = Nokogiri::XML::parse(xml).children.first
           resource_collection.add_child(node)
 
-          out.put_next_entry(File.join('word', 'media', "auto#{ id.downcase }.png"))
+          out.put_next_entry(File.join('word', 'media', name))
           out.write(File.read(r.data))
           # resources[id] = node
         end
