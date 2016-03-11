@@ -33,25 +33,34 @@ module Sablon
 
       Zip::OutputStream.write_buffer(StringIO.new) do |out|
         opened_zip = Zip::File.open(@path)
+        contents = {}
+
         opened_zip.each do |entry|
           entry_name = entry.name
 
           content = entry.get_input_stream.read
+
           if entry_name == 'word/document.xml'
-            out.put_next_entry(entry_name)
-            out.write(process(Processor::Document, content, context, resources, properties))
+            contents[entry_name] = process(Processor::Document, content, context, resources, properties)
           elsif entry_name =~ /word\/header\d*\.xml/ || entry_name =~ /word\/footer\d*\.xml/
-            out.put_next_entry(entry_name)
-            out.write(process(Processor::Document, content, context, resources))
+            contents[entry_name] = process(Processor::Document, content, context, resources)
           elsif entry_name == 'word/numbering.xml'
-            out.put_next_entry(entry_name)
-            out.write(process(Processor::Numbering, content))
+            contents[entry_name] = process(Processor::Numbering, content)
             # out.write(Processor.process_rels(Nokogiri::XML(content), resources).to_xml)
           elsif entry_name == 'word/_rels/document.xml.rels'
             false
+          elsif entry_name == '[Content_Types].xml'
+            types = Nokogiri::XML.parse(content)
+            ['jpeg', 'png', 'bmp'].each do |type|
+              parent = types.children.first
+              unless parent.children.select{ |t| t['ContentType'] == "image/#{ type }" }.any?
+                parent.add_child(%{<Default Extension="#{ type }" ContentType="image/#{ type }"/>})
+              end
+            end
+
+            contents[entry_name] = types.to_xml(indent: 0).gsub("\n","")
           else
-            out.put_next_entry(entry_name)
-            out.write(content)
+            contents[entry_name] =content
           end
         end
 
@@ -63,13 +72,16 @@ module Sablon
           node = Nokogiri::XML::parse(xml).children.first
           resource_collection.add_child(node)
 
-          out.put_next_entry(File.join('word', 'media', name))
-          out.write(File.read(r.data))
+          contents[File.join('word', 'media', name)] = File.read(r.data)
           # resources[id] = node
         end
 
-        out.put_next_entry(File.join('word', '_rels', 'document.xml.rels'))
-        out.write(resources_document.to_xml(indent: 0).gsub("\n",""))
+        contents[File.join('word', '_rels', 'document.xml.rels')] = resources_document.to_xml(indent: 0).gsub("\n","")
+
+        contents.keys.sort.each do |entry_name|
+          out.put_next_entry(entry_name)
+          out.write(contents[entry_name])
+        end
       end
     end
 

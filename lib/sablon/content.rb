@@ -46,7 +46,7 @@ module Sablon
       def initialize(source)
         self.source = source
         case source
-        when ::File
+        when ::File, ::Tempfile
           self.data = source
         when ::Pathname, ::String
           self.data = File.open(source, 'rb')
@@ -67,7 +67,7 @@ module Sablon
           self.wraps?(Pathname.new(source))
         when ::Pathname
           source.exist? && source.file? && self.wraps?(File.open(source))
-        when ::File
+        when ::File, ::Tempfile
           ImageSpec.new(source)
         end
       rescue ImageSpec::Error
