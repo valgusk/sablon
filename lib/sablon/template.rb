@@ -72,7 +72,14 @@ module Sablon
           node = Nokogiri::XML::parse(xml).children.first
           resource_collection.add_child(node)
 
-          contents[File.join('word', 'media', name)] = File.read(r.data)
+          content = case r.data
+                    when ::File, ::Tempfile
+                      File.read(r.data)
+                    when ::StringIO
+                      r.data.read
+                    end
+
+          contents[File.join('word', 'media', name)] = content
           # resources[id] = node
         end
 

@@ -20,7 +20,7 @@ module Sablon
 
         private
         def replace_field_display(node, content)
-          paragraph = node.ancestors(".//w:p").first
+          paragraph = node.ancestors(".//w:p").first || node.ancestors.search('tmp').try(:first)
           display_node = get_display_node(node)
           content.append_to(paragraph, display_node)
           display_node.remove
@@ -76,7 +76,7 @@ module Sablon
             src_rect_node['t'] = format_percent(new_off_y[0].to_f / new_image_y.to_f) if new_off_y[0] != 0
             src_rect_node['b'] = format_percent(new_off_y[1].to_f / new_image_y.to_f) if new_off_y[1] != 0
 
-            property_node['descr'] =  property_node['descr'].sub(META_PATTERN, '')
+            property_node['descr'] =  property_node['descr'].to_s.sub(META_PATTERN, '')
           end
 
           def format_percent(number)
@@ -257,7 +257,7 @@ module Sablon
       class ComplexField < MergeField
         def initialize(nodes)
           @nodes = nodes
-          @raw_expression = @nodes.flat_map {|n| n.search(".//w:instrText").map(&:content) }.join
+          @raw_expression = @nodes.flatten(1).take_while{ |n| n != separate_node }.map {|n| n.search(".//w:instrText").map(&:content) }.join
         end
 
         def valid?

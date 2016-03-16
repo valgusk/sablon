@@ -119,7 +119,11 @@ module Sablon
 
       class InlineParagraphBlock < Block
         def self.parent(node)
-          node.ancestors ".//w:p"
+          if (ret = node.ancestors(".//w:p")).any?
+            ret
+          else
+            node.ancestors.search('tmp')
+          end
         end
 
         def remove_control_elements
