@@ -1,10 +1,11 @@
 module Sablon
   module Parser
     class MailMerge
-      attr_accessor :resources
+      attr_accessor :resources, :numbering
 
-      def initialize(resources)
+      def initialize(resources, numbering)
         self.resources = resources
+        self.numbering = numbering
       end
 
       class MergeField

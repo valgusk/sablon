@@ -1,5 +1,6 @@
 module Sablon
   class Template
+
     def initialize(path)
       @path = path
     end
@@ -18,11 +19,13 @@ module Sablon
 
     private
     def render(context, properties = {})
-      Sablon::Numbering.instance.reset!
+
       Zip.sort_entries = true # required to process document.xml before numbering.xml
 
-      # parse resources
+      numbering = Sablon::Numbering.new
       resources = {}
+
+      # parse resources
 
       resources_xml = Zip::File.open(@path).get_entry('word/_rels/document.xml.rels').get_input_stream.read
       resources_document = Nokogiri::XML.parse(resources_xml)
@@ -41,11 +44,11 @@ module Sablon
           content = entry.get_input_stream.read
 
           if entry_name == 'word/document.xml'
-            contents[entry_name] = process(Processor::Document, content, context, resources, properties)
+            contents[entry_name] = process(Processor::Document, content, context, resources, numbering, properties)
           elsif entry_name =~ /word\/header\d*\.xml/ || entry_name =~ /word\/footer\d*\.xml/
-            contents[entry_name] = process(Processor::Document, content, context, resources)
+            contents[entry_name] = process(Processor::Document, content, context, resources, numbering)
           elsif entry_name == 'word/numbering.xml'
-            contents[entry_name] = process(Processor::Numbering, content)
+            contents[entry_name] = process(Processor::Numbering, content, numbering)
             # out.write(Processor.process_rels(Nokogiri::XML(content), resources).to_xml)
           elsif entry_name == 'word/_rels/document.xml.rels'
             false

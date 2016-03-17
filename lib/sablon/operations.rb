@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 module Sablon
   module Statement
-    class Insertion < Struct.new(:expr, :field)
+    class Insertion < Struct.new(:expr, :field, :numbering)
       def evaluate(context)
         if content = expr.evaluate(context)
-          field.replace(Sablon::Content.wrap(expr.evaluate(context)))
+          content = Sablon::Content.wrap(expr.evaluate(context))
+          content.numbering = self.numbering if content.respond_to?(:numbering=)
+          field.replace(content)
         else
           field.remove
         end

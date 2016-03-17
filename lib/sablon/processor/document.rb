@@ -2,15 +2,15 @@
 module Sablon
   module Processor
     class Document
-      def self.process(xml_node, context, resources, properties = {})
-        processor = new(parser(resources))
+      def self.process(xml_node, context, resources, numbering, properties = {})
+        processor = new(parser(resources, numbering))
         processor.manipulate xml_node, Sablon::Context.transform(context)
         processor.write_properties xml_node, properties if properties.any?
         xml_node
       end
 
-      def self.parser(resources)
-        Sablon::Parser::MailMerge.new(resources)
+      def self.parser(resources, numbering)
+        Sablon::Parser::MailMerge.new(resources, numbering)
       end
 
       def initialize(parser)
@@ -18,7 +18,7 @@ module Sablon
       end
 
       def manipulate(xml_node, context)
-        operations = build_operations(@parser.parse_fields(xml_node), @parser.resources)
+        operations = build_operations(@parser.parse_fields(xml_node), @parser.resources, @parser.numbering)
         operations.each do |step|
           step.evaluate context
         end
@@ -34,8 +34,8 @@ module Sablon
       end
 
       private
-      def build_operations(fields, resources)
-        OperationConstruction.new(fields, resources).operations
+      def build_operations(fields, resources, numbering)
+        OperationConstruction.new(fields, resources, numbering).operations
       end
 
       def cleanup(xml_node)
@@ -49,7 +49,7 @@ module Sablon
         end
       end
 
-      class Block < Struct.new(:start_field, :end_field, :resources)
+      class Block < Struct.new(:start_field, :end_field, :resources, :numbering)
         def self.enclosed_by(start_field, end_field)
           @blocks ||= [RowBlock, ParagraphBlock, InlineParagraphBlock]
           block_class = @blocks.detect { |klass| klass.encloses?(start_field, end_field) }
@@ -59,7 +59,7 @@ module Sablon
         def process(context)
           replaced_node = Nokogiri::XML::Node.new("tmp", start_node.document)
           replaced_node.children = Nokogiri::XML::NodeSet.new(start_node.document, body.map(&:dup))
-          Processor::Document.process replaced_node, context, resources
+          Processor::Document.process replaced_node, context, resources, numbering
           replaced_node.children
         end
 
@@ -107,6 +107,16 @@ module Sablon
         end
       end
 
+      # class TmpBlock < Block
+      #   def self.parent(node)
+      #     node.ancestors.search 'tmp'
+      #   end
+
+      #   def self.encloses?(start_field, end_field)
+      #     super && parent(start_field) == parent(end_field)
+      #   end
+      # end
+
       class ParagraphBlock < Block
         def self.parent(node)
           node.ancestors ".//w:p"
@@ -146,9 +156,10 @@ module Sablon
       end
 
       class OperationConstruction
-        def initialize(fields, resources)
+        def initialize(fields, resources, numbering)
           @fields = fields
           @resources = resources
+          @numbering = numbering
           @operations = []
         end
 
@@ -165,7 +176,7 @@ module Sablon
           case @field.expression
           when /^=/
             if allow_insertion
-              Statement::Insertion.new(Expression.parse(@field.expression[1..-1]), @field)
+              Statement::Insertion.new(Expression.parse(@field.expression[1..-1]), @field, @numbering)
             end
           when /([^ ]+):each\(([^ ]+)\)/
             block = consume_block("#{$1}:endEach")
@@ -191,6 +202,7 @@ module Sablon
 
           if end_field
             block = Block.enclosed_by start_field, end_field
+            block.numbering = @numbering
             block.resources = @resources
             block
           else

@@ -135,15 +135,22 @@ module Sablon
       end
     end
 
-    class HTML < Struct.new(:word_ml)
+    class HTML < Struct.new(:word_ml, :html)
       include Sablon::Content
       def self.id; :html end
       def self.wraps?(value) false end
 
       def initialize(html)
-        converter = HTMLConverter.new
-        word_ml = Sablon.content(:word_ml, converter.process(html))
-        super word_ml
+        self.html = html
+        @converter = HTMLConverter.new
+      end
+
+      def numbering=(numbering)
+        @converter.numbering = numbering
+      end
+
+      def word_ml
+        Sablon.content(:word_ml, @converter.process(self.html))
       end
 
       def append_to(*args)

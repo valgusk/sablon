@@ -3,6 +3,8 @@ require "sablon/html/visitor"
 
 module Sablon
   class HTMLConverter
+    attr_accessor :numbering
+
     class ASTBuilder
       Layer = Struct.new(:items, :ilvl)
 
@@ -64,6 +66,7 @@ module Sablon
     end
 
     def process(input)
+      fail 'Numbering instance is not set!' unless numbering
       processed_ast(input).to_docx
     end
 
@@ -98,13 +101,13 @@ module Sablon
       elsif node.name == 'ul'
         @builder.new_layer ilvl: true
         unless @builder.nested?
-          @definition = Sablon::Numbering.instance.register('ListBullet')
+          @definition = numbering.register('ListBullet')
         end
         @builder.push_all(node.children)
       elsif node.name == 'ol'
         @builder.new_layer ilvl: true
         unless @builder.nested?
-          @definition = Sablon::Numbering.instance.register('ListNumber')
+          @definition = numbering.register('ListNumber')
         end
         @builder.push_all(node.children)
       elsif node.name == 'li'
