@@ -292,7 +292,8 @@ module Sablon
         end
 
         def separate_node
-          @nodes.detect {|n| !n.search(".//w:fldChar[@w:fldCharType='separate']").empty? }
+          return @separate_node if defined? @separate_node
+          @separate_node = @nodes.detect {|n| !n.search(".//w:fldChar[@w:fldCharType='separate']").empty? }
         end
       end
 
