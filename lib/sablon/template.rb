@@ -56,7 +56,7 @@ module Sablon
             types = Nokogiri::XML.parse(content)
             ['jpeg', 'png', 'bmp'].each do |type|
               parent = types.children.first
-              unless parent.children.select{ |t| t['ContentType'] == "image/#{ type }" }.any?
+              unless parent.children.select{ |t| (t['Extension'] == type) && (t['ContentType'] == "image/#{ type }") }.any?
                 parent.add_child(%{<Default Extension="#{ type }" ContentType="image/#{ type }"/>})
               end
             end

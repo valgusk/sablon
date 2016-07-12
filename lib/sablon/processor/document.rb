@@ -190,6 +190,9 @@ module Sablon
           when /comment/
             block = consume_block("endComment")
             Statement::Comment.new(block)
+          when /([^ ]+):call(\(([^)]+)\)){0,1}/
+            block = consume_block("#{$1}:endCall")
+            Statement::Call.new(Expression.parse($1), block, $2)
           end
         end
 

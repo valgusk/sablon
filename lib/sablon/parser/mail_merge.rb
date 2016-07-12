@@ -9,7 +9,8 @@ module Sablon
       end
 
       class MergeField
-        KEY_PATTERN = /^\s*MERGEFIELD\s+([^ ]+)\s+\\\*\s+MERGEFORMAT\s*$/
+        attr_accessor :nodes
+        KEY_PATTERN = /^\s*MERGEFIELD\s*([\s\S]+?)\s*\\\*\s*MERGEFORMAT\s*$/
 
         def valid?
           expression
@@ -249,8 +250,9 @@ module Sablon
         class << self
           def valid_candidate?(node)
             return false if node.name != 'drawing'
+            return false if node.at_xpath('.//w:drawing')
             prop = node.at_xpath('.//pic:cNvPr', 'pic' => PICTURE_NS_URI)
-            prop['name'].strip[/^=/]
+            prop && prop['name'].strip[/^=/]
           end
         end
       end
