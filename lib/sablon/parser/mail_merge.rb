@@ -1,14 +1,16 @@
 module Sablon
   module Parser
     class MailMerge
-      attr_accessor :resources
+      attr_accessor :resources, :numbering
 
-      def initialize(resources)
+      def initialize(resources, numbering)
         self.resources = resources
+        self.numbering = numbering
       end
 
       class MergeField
-        KEY_PATTERN = /^\s*MERGEFIELD\s+([^ ]+)\s+\\\*\s+MERGEFORMAT\s*$/
+        attr_accessor :nodes
+        KEY_PATTERN = /^\s*MERGEFIELD\s*([\s\S]+?)\s*\\\*\s*MERGEFORMAT\s*$/
 
         def valid?
           expression
@@ -20,7 +22,7 @@ module Sablon
 
         private
         def replace_field_display(node, content)
-          paragraph = node.ancestors(".//w:p").first
+          paragraph = node.ancestors(".//w:p").first || node.ancestors.search('tmp').try(:first)
           display_node = get_display_node(node)
           content.append_to(paragraph, display_node)
           display_node.remove
@@ -76,7 +78,7 @@ module Sablon
             src_rect_node['t'] = format_percent(new_off_y[0].to_f / new_image_y.to_f) if new_off_y[0] != 0
             src_rect_node['b'] = format_percent(new_off_y[1].to_f / new_image_y.to_f) if new_off_y[1] != 0
 
-            property_node['descr'] =  property_node['descr'].sub(META_PATTERN, '')
+            property_node['descr'] =  property_node['descr'].to_s.sub(META_PATTERN, '')
           end
 
           def format_percent(number)
@@ -248,8 +250,9 @@ module Sablon
         class << self
           def valid_candidate?(node)
             return false if node.name != 'drawing'
+            return false if node.at_xpath('.//w:drawing')
             prop = node.at_xpath('.//pic:cNvPr', 'pic' => PICTURE_NS_URI)
-            prop['name'].strip[/^=/]
+            prop && prop['name'].strip[/^=/]
           end
         end
       end
@@ -257,7 +260,7 @@ module Sablon
       class ComplexField < MergeField
         def initialize(nodes)
           @nodes = nodes
-          @raw_expression = @nodes.flat_map {|n| n.search(".//w:instrText").map(&:content) }.join
+          @raw_expression = @nodes.flatten(1).take_while{ |n| n != separate_node }.map {|n| n.search(".//w:instrText").map(&:content) }.join
         end
 
         def valid?
@@ -291,7 +294,8 @@ module Sablon
         end
 
         def separate_node
-          @nodes.detect {|n| !n.search(".//w:fldChar[@w:fldCharType='separate']").empty? }
+          return @separate_node if defined? @separate_node
+          @separate_node = @nodes.detect {|n| !n.search(".//w:fldChar[@w:fldCharType='separate']").empty? }
         end
       end
 

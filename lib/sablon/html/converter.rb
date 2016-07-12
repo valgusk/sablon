@@ -3,6 +3,9 @@ require "sablon/html/visitor"
 
 module Sablon
   class HTMLConverter
+    attr_accessor :numbering
+    attr_accessor :styles
+
     class ASTBuilder
       Layer = Struct.new(:items, :ilvl)
 
@@ -64,6 +67,7 @@ module Sablon
     end
 
     def process(input)
+      fail 'Numbering instance is not set!' unless numbering
       processed_ast(input).to_docx
     end
 
@@ -84,27 +88,42 @@ module Sablon
     end
 
     private
+    def styles
+      [1..6].reduce(
+        div: 'Normal',
+        p: 'Paragraph',
+        ul: 'ListBullet',
+        ol: 'ListNumber',
+      ) do |memo, headingNum|
+        memo.merge("h#{ headingNum }".to_sym => "Heading#{ headingNum }")
+      end.merge(@styles || {})
+    end
+
+    def get_style(tag)
+      styles[tag.downcase.to_sym] || 'Normal'
+    end
+
     def ast_next_paragraph
       node = @builder.next
       if node.name == 'div'
         @builder.new_layer
-        @builder.emit Paragraph.new('Normal', ast_text(node.children))
+        @builder.emit Paragraph.new(get_style(node.name), ast_text(node.children))
       elsif node.name == 'p'
         @builder.new_layer
-        @builder.emit Paragraph.new('Paragraph', ast_text(node.children))
+        @builder.emit Paragraph.new(get_style(node.name), ast_text(node.children))
       elsif node.name =~ /h(\d+)/
         @builder.new_layer
-        @builder.emit Paragraph.new("Heading#{$1}", ast_text(node.children))
+        @builder.emit Paragraph.new(get_style(node.name), ast_text(node.children))
       elsif node.name == 'ul'
         @builder.new_layer ilvl: true
         unless @builder.nested?
-          @definition = Sablon::Numbering.instance.register('ListBullet')
+          @definition = numbering.register(get_style(node.name))
         end
         @builder.push_all(node.children)
       elsif node.name == 'ol'
         @builder.new_layer ilvl: true
         unless @builder.nested?
-          @definition = Sablon::Numbering.instance.register('ListNumber')
+          @definition = numbering.register(get_style(node.name))
         end
         @builder.push_all(node.children)
       elsif node.name == 'li'

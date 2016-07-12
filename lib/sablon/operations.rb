@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 module Sablon
   module Statement
-    class Insertion < Struct.new(:expr, :field)
+    class Insertion < Struct.new(:expr, :field, :numbering)
       def evaluate(context)
         if content = expr.evaluate(context)
-          field.replace(Sablon::Content.wrap(expr.evaluate(context)))
+          content = Sablon::Content.wrap(expr.evaluate(context))
+          content.numbering = self.numbering if content.respond_to?(:numbering=)
+          field.replace(content)
         else
           field.remove
         end
@@ -22,6 +24,38 @@ module Sablon
           block.process(iteration_context)
         end
         block.replace(content.reverse)
+      end
+    end
+
+    class Call < Struct.new(:call_expr, :block, :tail)
+      def evaluate(context)
+        value = call_expr.evaluate(context)
+        content = value.call(block.body, *parse_arguments(context), &processor(context))
+        block.replace(content.reverse)
+      end
+
+      def processor(context)
+        proc do |xml_node, call_context|
+          context = context.merge({ call_context: call_context })
+          Processor::Document.process xml_node, context, block.resources, block.numbering
+        end
+      end
+
+      def parse_arguments(context)
+        return [] unless tail && tail.is_a?(String)
+
+        arg_strings = tail.match(/^\(([\s\S]+)\)$/).to_a[1].to_s.split(/,\s*/)
+        arg_strings.map do |arg|
+          begin
+            eval(arg)
+          rescue SyntaxError => e
+            if arg.is_a?(String) && arg[/^=/]
+              Expression.parse(arg.sub(/^=/, '')).evaluate(context)
+            else
+              raise e
+            end
+          end
+        end
       end
     end
 

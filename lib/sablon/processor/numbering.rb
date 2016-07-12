@@ -7,18 +7,19 @@ module Sablon
         </w:num>
       XML
 
-      def self.process(doc)
-        processor = new(doc)
+      def self.process(doc, numbering)
+        processor = new(doc, numbering)
         processor.manipulate
         doc
       end
 
-      def initialize(doc)
+      def initialize(doc, numbering)
         @doc = doc
+        @numbering = numbering
       end
 
       def manipulate
-        Sablon::Numbering.instance.definitions.each do |definition|
+        @numbering.definitions.each do |definition|
           abstract_num_ref = find_definition(definition.style)
           abstract_num_copy = abstract_num_ref.dup
           abstract_num_copy['w:abstractNumId'] = definition.numid

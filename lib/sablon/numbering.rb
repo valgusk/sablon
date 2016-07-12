@@ -1,6 +1,5 @@
 module Sablon
   class Numbering
-    include Singleton
     attr_reader :definitions
 
     Definition = Struct.new(:numid, :style) do

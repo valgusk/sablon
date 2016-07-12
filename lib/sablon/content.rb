@@ -46,7 +46,7 @@ module Sablon
       def initialize(source)
         self.source = source
         case source
-        when ::File, ::Tempfile
+        when ::File, ::Tempfile, ::StringIO
           self.data = source
         when ::Pathname, ::String
           self.data = File.open(source, 'rb')
@@ -54,7 +54,9 @@ module Sablon
       end
 
       def spec
-        ImageSpec.new(data)
+        ret = ImageSpec.new(data)
+        data.rewind if data.is_a?(::StringIO)
+        ret
       end
 
       def self.id
@@ -67,7 +69,7 @@ module Sablon
           self.wraps?(Pathname.new(source))
         when ::Pathname
           source.exist? && source.file? && self.wraps?(File.open(source))
-        when ::File, ::Tempfile
+        when ::File, ::Tempfile, ::StringIO
           ImageSpec.new(source)
         end
       rescue ImageSpec::Error
@@ -91,8 +93,8 @@ module Sablon
       end
 
       def append_to(paragraph, display_node)
-        string.scan(/[^\n]+|\n/).reverse.each do |part|
-          if part == "\n"
+        string.scan(/[^\n\r]+|[\n\r]+/).reverse.each do |part|
+          if part[/[\n\r]/]
             display_node.add_next_sibling Nokogiri::XML::Node.new "w:br", display_node.document
           else
             text_part = display_node.dup
@@ -116,6 +118,24 @@ module Sablon
       end
     end
 
+    class InlineWordML < Struct.new(:xml, :replace_run)
+      include Sablon::Content
+      def self.id; :inline_word_ml end
+      def self.wraps?(value) false end
+
+      def append_to(paragraph, display_node)
+        if replace_run
+          display_node = display_node.at_xpath('./ancestor::w:r')
+        end
+
+        Nokogiri::XML.fragment(xml).children.reverse.each do |child|
+          display_node.add_next_sibling child
+        end
+
+        display_node.remove if replace_run
+      end
+    end
+
     class Markdown < Struct.new(:word_ml)
       include Sablon::Content
       def self.id; :markdown end
@@ -133,15 +153,28 @@ module Sablon
       end
     end
 
-    class HTML < Struct.new(:word_ml)
+    class HTML < Struct.new(:word_ml, :html, :styles)
       include Sablon::Content
       def self.id; :html end
       def self.wraps?(value) false end
 
-      def initialize(html)
-        converter = HTMLConverter.new
-        word_ml = Sablon.content(:word_ml, converter.process(html))
-        super word_ml
+      def initialize(html, styles = nil)
+        self.html = html
+        self.styles = styles
+        @converter = HTMLConverter.new
+        @converter.styles = styles
+      end
+
+      def numbering=(numbering)
+        @converter.numbering = numbering
+      end
+
+      def word_ml
+        Sablon.content(:word_ml, @converter.process(self.html))
+      end
+
+      def present?
+        Nokogiri::HTML(html.to_s).content.present?
       end
 
       def append_to(*args)
@@ -151,6 +184,7 @@ module Sablon
 
     register Sablon::Content::String
     register Sablon::Content::WordML
+    register Sablon::Content::InlineWordML
     register Sablon::Content::Markdown
     register Sablon::Content::HTML
     register Sablon::Content::Image
