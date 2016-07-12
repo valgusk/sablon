@@ -1,3 +1,5 @@
+require 'fileutils'
+
 module Sablon
   module Parser
     class MailMerge
@@ -220,6 +222,22 @@ module Sablon
           @raw_expression = node.at_xpath('.//pic:cNvPr', 'pic' => PICTURE_NS_URI)['name'].strip
         end
 
+        def self.from_cache(all_nodes, cache)
+          field = allocate
+          field.resources = cache[:resources]
+          field.instance_variable_set(:@raw_expression, cache[:raw_expression])
+          field.instance_variable_set(:@node, all_nodes[cache[:node]])
+          field
+        end
+
+        def to_cache(all_nodes)
+          {
+            type: self.class.name,
+            node: all_nodes.index(@node),
+            raw_expression: @raw_expression
+          }
+        end
+
         def replace(content)
           if content.is_a?(Content::Image) && node = @node
             image_id = next_image_id
@@ -263,6 +281,36 @@ module Sablon
           @raw_expression = @nodes.flatten(1).take_while{ |n| n != separate_node }.map {|n| n.search(".//w:instrText").map(&:content) }.join
         end
 
+        def self.from_cache(all_nodes, cache)
+          ancestor_paragraph_set = Nokogiri::XML::NodeSet.new(all_nodes.first.document, all_nodes.values_at(*cache[:ancestor_paragraphs]))
+          ancestor_row_set = Nokogiri::XML::NodeSet.new(all_nodes.first.document, all_nodes.values_at(*cache[:ancestor_rows]))
+          ancestor_set = Nokogiri::XML::NodeSet.new(all_nodes.first.document, all_nodes.values_at(*cache[:ancestors]))
+
+          field = allocate
+          field.instance_variable_set(:@raw_expression, cache[:raw_expression])
+          field.instance_variable_set(:@nodes, all_nodes.values_at(*cache[:nodes]))
+          field.instance_variable_set(:@ancestors, ancestor_set)
+          field.instance_variable_set(:@ancestor_paragraphs, ancestor_paragraph_set)
+          field.instance_variable_set(:@ancestor_rows, ancestor_row_set)
+
+          binding.pry if Object.instance_variable_defined?(:@pryme)
+          field
+        end
+
+        def to_cache(all_nodes)
+          ancestor_paragraphs = ancestors(".//w:p")
+          ancestor_rows = ancestors(".//w:tr")
+          all_ancestors = ancestors
+          {
+            type: self.class.name,
+            ancestors: all_ancestors.is_a?(Nokogiri::XML::NodeSet) ? all_ancestors.map(&all_nodes.method(:index)) : all_ancestors,
+            ancestor_paragraphs: ancestor_paragraphs.is_a?(Nokogiri::XML::NodeSet) ? ancestor_paragraphs.map(&all_nodes.method(:index)) : ancestor_paragraphs,
+            ancestor_rows: ancestor_rows.is_a?(Nokogiri::XML::NodeSet) ? ancestor_rows.map(&all_nodes.method(:index)) : ancestor_rows,
+            nodes: @nodes.map(&all_nodes.method(:index)),
+            raw_expression: @raw_expression
+          }
+        end
+
         def valid?
           separate_node && get_display_node(pattern_node) && expression
         end
@@ -277,7 +325,15 @@ module Sablon
         end
 
         def ancestors(*args)
-          @nodes.first.ancestors(*args)
+          if (args.first == ".//w:p") && @ancestor_paragraphs
+            @ancestor_paragraphs
+          elsif (args.first == ".//w:tr") && @ancestor_rows
+            @ancestor_rows
+          elsif @ancestors && !args.any?
+            @ancestors
+          else
+            @nodes.first.ancestors(*args)
+          end
         end
 
         def start_node
@@ -305,6 +361,34 @@ module Sablon
           @raw_expression = @node["w:instr"]
         end
 
+        def to_cache(all_nodes)
+          ancestor_paragraphs = ancestors(".//w:p")
+          ancestor_rows = ancestors(".//w:tr")
+          all_ancestors = ancestors
+          {
+            type: self.class.name,
+            ancestors: all_ancestors.is_a?(Nokogiri::XML::NodeSet) ? all_ancestors.map(&all_nodes.method(:index)) : all_ancestors,
+            ancestor_paragraphs: ancestor_paragraphs.is_a?(Nokogiri::XML::NodeSet) ? ancestor_paragraphs.map(&all_nodes.method(:index)) : ancestor_paragraphs,
+            ancestor_rows: ancestor_rows.is_a?(Nokogiri::XML::NodeSet) ? ancestor_rows.map(&all_nodes.method(:index)) : ancestor_rows,
+            node: all_nodes.index(@node),
+            raw_expression: @raw_expression
+          }
+        end
+
+        def self.from_cache(all_nodes, cache)
+          ancestor_paragraph_set = Nokogiri::XML::NodeSet.new(all_nodes.first.document, all_nodes.values_at(*cache[:ancestor_paragraphs]))
+          ancestor_row_set = Nokogiri::XML::NodeSet.new(all_nodes.first.document, all_nodes.values_at(*cache[:ancestor_rows]))
+          ancestor_set = Nokogiri::XML::NodeSet.new(all_nodes.first.document, all_nodes.values_at(*cache[:ancestors]))
+
+          field = allocate
+          field.instance_variable_set(:@raw_expression, cache[:raw_expression])
+          field.instance_variable_set(:@node, all_nodes[cache[:node]])
+          field.instance_variable_set(:@ancestors, ancestor_set)
+          field.instance_variable_set(:@ancestor_paragraphs, ancestor_paragraph_set)
+          field.instance_variable_set(:@ancestor_rows, ancestor_row_set)
+          field
+        end
+
         def replace(content)
           replace_field_display(@node, content)
           @node.replace(@node.children)
@@ -315,27 +399,79 @@ module Sablon
         end
 
         def ancestors(*args)
-          @node.ancestors(*args)
+          if (args.first == ".//w:p") && @ancestor_paragraphs
+            @ancestor_paragraphs
+          elsif (args.first == ".//w:tr") && @ancestor_rows
+            @ancestor_rows
+          elsif @ancestors && !args.any?
+            @ancestors
+          else
+            @node.ancestors(*args)
+          end
         end
 
         def start_node
           @node
         end
+
         alias_method :end_node, :start_node
       end
 
-      def parse_fields(xml)
-        fields = []
-        xml.traverse do |node|
-          if node.name == "fldSimple"
-            field = SimpleField.new(node)
-          elsif node.name == 'drawing'
-            field = IncludeImage.new(node, resources) if IncludeImage.valid_candidate?(node)
-          elsif node.name == "fldChar" && node["w:fldCharType"] == "begin"
-            field = build_complex_field(node)
-          end
-          fields << field if field && field.valid?
+      def cache_file(xml_id)
+        raise 'no cache dir provided' unless Sablon.cache_dir
+        ret = Pathname.new(Sablon.cache_dir).join("#{ xml_id }.dump")
+        FileUtils.mkdir_p ret.dirname
+        ret
+      end
+
+      def write_cache(xml_id, field_cache)
+        File.open(cache_file(xml_id), File::RDWR|File::CREAT, 0644) {|f|
+          f.flock(File::LOCK_EX)
+          f.binmode
+          f.write(Marshal.dump(field_cache))
+        }
+      end
+
+      def read_cache(xml_id)
+        File.open(cache_file(xml_id), "r") do |f|
+          f.flock(File::LOCK_SH)
+          f.binmode
+          Marshal.load(f.read)
         end
+      rescue Errno::ENOENT, ArgumentError
+        nil
+      end
+
+      def parse_fields(xml)
+        xml_id = "#{ Sablon::VERSION }::#{ Digest::SHA512.hexdigest(xml.to_s) }"
+        all_nodes = xml.enum_for(:traverse).to_a
+        # all_nodes = xml.xpath("/descendant-or-self::node()").to_a
+        cached_fields = read_cache(xml_id)
+
+        if cached_fields
+          fields = cached_fields.map do |cache|
+            self.class.const_get(cache[:type]).from_cache(
+              all_nodes,
+              cache.merge(resources: resources)
+            )
+          end
+        else
+          fields = []
+          xml.traverse do |node|
+            if node.name == "fldSimple"
+              field = SimpleField.new(node)
+            elsif node.name == 'drawing'
+              field = IncludeImage.new(node, resources) if IncludeImage.valid_candidate?(node)
+            elsif node.name == "fldChar" && node["w:fldCharType"] == "begin"
+              field = build_complex_field(node)
+            end
+            fields << field if field && field.valid?
+          end
+
+          cached_fields = fields.map{ |f| f.to_cache(all_nodes) }
+          write_cache(xml_id, cached_fields)
+        end
+
         fields
       end
 

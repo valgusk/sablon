@@ -17,6 +17,10 @@ require "sablon/content"
 require 'redcarpet'
 
 module Sablon
+  class << self
+    attr_accessor :cache_dir
+  end
+
   class TemplateError < ArgumentError; end
   class ContextError < ArgumentError; end
 
