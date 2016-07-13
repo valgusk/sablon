@@ -23,8 +23,13 @@ module Sablon
         end
 
         private
+        def paragraph_node(node)
+          return @paragraph_node if defined?(@paragraph_node)
+          @paragraph_node = node.ancestors(".//w:p").first || node.ancestors.search('tmp').try(:first)
+        end
+
         def replace_field_display(node, content)
-          paragraph = node.ancestors(".//w:p").first || node.ancestors.search('tmp').try(:first)
+          paragraph = paragraph_node(node)
           display_node = get_display_node(node)
           content.append_to(paragraph, display_node)
           display_node.remove
@@ -292,6 +297,8 @@ module Sablon
           field.instance_variable_set(:@ancestors, ancestor_set)
           field.instance_variable_set(:@ancestor_paragraphs, ancestor_paragraph_set)
           field.instance_variable_set(:@ancestor_rows, ancestor_row_set)
+          field.instance_variable_set(:@paragraph_node, all_nodes[cache[:paragraph_node]])
+          field.instance_variable_set(:@separate_node, all_nodes[cache[:separate_node]])
 
           binding.pry if Object.instance_variable_defined?(:@pryme)
           field
@@ -306,7 +313,9 @@ module Sablon
             ancestors: all_ancestors.is_a?(Nokogiri::XML::NodeSet) ? all_ancestors.map(&all_nodes.method(:index)) : all_ancestors,
             ancestor_paragraphs: ancestor_paragraphs.is_a?(Nokogiri::XML::NodeSet) ? ancestor_paragraphs.map(&all_nodes.method(:index)) : ancestor_paragraphs,
             ancestor_rows: ancestor_rows.is_a?(Nokogiri::XML::NodeSet) ? ancestor_rows.map(&all_nodes.method(:index)) : ancestor_rows,
+            separate_node: all_nodes.index(separate_node),
             nodes: @nodes.map(&all_nodes.method(:index)),
+            paragraph_node: all_nodes.index(paragraph_node(pattern_node)),
             raw_expression: @raw_expression
           }
         end
@@ -371,6 +380,7 @@ module Sablon
             ancestor_paragraphs: ancestor_paragraphs.is_a?(Nokogiri::XML::NodeSet) ? ancestor_paragraphs.map(&all_nodes.method(:index)) : ancestor_paragraphs,
             ancestor_rows: ancestor_rows.is_a?(Nokogiri::XML::NodeSet) ? ancestor_rows.map(&all_nodes.method(:index)) : ancestor_rows,
             node: all_nodes.index(@node),
+            paragraph_node: all_nodes.index(paragraph_node(@node)),
             raw_expression: @raw_expression
           }
         end
@@ -386,6 +396,7 @@ module Sablon
           field.instance_variable_set(:@ancestors, ancestor_set)
           field.instance_variable_set(:@ancestor_paragraphs, ancestor_paragraph_set)
           field.instance_variable_set(:@ancestor_rows, ancestor_row_set)
+          field.instance_variable_set(:@paragraph_node, all_nodes[cache[:paragraph_node]])
           field
         end
 
@@ -442,13 +453,19 @@ module Sablon
         nil
       end
 
-      def parse_fields(xml)
-        xml_id = "#{ Sablon::VERSION }::#{ Digest::SHA512.hexdigest(xml.to_s) }"
-        all_nodes = xml.enum_for(:traverse).to_a
-        # all_nodes = xml.xpath("/descendant-or-self::node()").to_a
-        cached_fields = read_cache(xml_id)
+      def caching_enabled?
+        !!Sablon.cache_dir
+      end
 
-        if cached_fields
+      def parse_fields(xml)
+        if caching_enabled?
+          xml_id = "#{ Sablon::VERSION }::#{ Digest::SHA512.hexdigest(xml.to_s) }"
+          # all_nodes = xml.enum_for(:traverse).to_a
+          all_nodes = xml.xpath("./descendant-or-self::node()").to_a
+          cached_fields = read_cache(xml_id)
+        end
+
+        if caching_enabled? && cached_fields
           fields = cached_fields.map do |cache|
             self.class.const_get(cache[:type]).from_cache(
               all_nodes,
@@ -468,8 +485,10 @@ module Sablon
             fields << field if field && field.valid?
           end
 
-          cached_fields = fields.map{ |f| f.to_cache(all_nodes) }
-          write_cache(xml_id, cached_fields)
+          if caching_enabled?
+            cached_fields = fields.map{ |f| f.to_cache(all_nodes) }
+            write_cache(xml_id, cached_fields)
+          end
         end
 
         fields
