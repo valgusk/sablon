@@ -104,7 +104,23 @@ module Sablon
     end
 
     def ast_next_paragraph
+      orphans = []
       node = @builder.next
+
+      while node && (node.text? || ['br', 'strong', 'b', 'em', 'i', 'u'].include?(node.name))
+        if !node.text?  || node.text[/\S/]
+          orphans << node
+        end
+        node = @builder.next
+      end
+
+      if orphans.any?
+        @builder.new_layer
+        @builder.emit Paragraph.new(get_style('div'), ast_text(orphans))
+      end
+
+      return unless node
+
       if node.name == 'div'
         @builder.new_layer
         @builder.emit Paragraph.new(get_style(node.name), ast_text(node.children))
