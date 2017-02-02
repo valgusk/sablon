@@ -155,7 +155,7 @@ module Sablon
     def ast_text(nodes, format: TextFormat.default)
       runs = nodes.flat_map do |node|
         if node.text?
-          Text.new(node.text, format)
+          Text.new(node.to_xml, format)
         elsif node.name == 'br'
           Newline.new
         elsif node.name == 'strong' || node.name == 'b'
