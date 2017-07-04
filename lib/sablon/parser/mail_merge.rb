@@ -300,7 +300,6 @@ module Sablon
           field.instance_variable_set(:@paragraph_node, all_nodes[cache[:paragraph_node]])
           field.instance_variable_set(:@separate_node, all_nodes[cache[:separate_node]])
 
-          binding.pry if Object.instance_variable_defined?(:@pryme)
           field
         end
 
@@ -310,11 +309,11 @@ module Sablon
           all_ancestors = ancestors
           {
             type: self.class.name,
-            ancestors: all_ancestors.is_a?(Nokogiri::XML::NodeSet) ? all_ancestors.map(&all_nodes.method(:index)) : all_ancestors,
-            ancestor_paragraphs: ancestor_paragraphs.is_a?(Nokogiri::XML::NodeSet) ? ancestor_paragraphs.map(&all_nodes.method(:index)) : ancestor_paragraphs,
-            ancestor_rows: ancestor_rows.is_a?(Nokogiri::XML::NodeSet) ? ancestor_rows.map(&all_nodes.method(:index)) : ancestor_rows,
+            ancestors: all_ancestors.is_a?(Nokogiri::XML::NodeSet) ? all_ancestors.map(&all_nodes.method(:index)) - [nil] : all_ancestors,
+            ancestor_paragraphs: ancestor_paragraphs.is_a?(Nokogiri::XML::NodeSet) ? ancestor_paragraphs.map(&all_nodes.method(:index)) - [nil] : ancestor_paragraphs,
+            ancestor_rows: ancestor_rows.is_a?(Nokogiri::XML::NodeSet) ? ancestor_rows.map(&all_nodes.method(:index)) - [nil] : ancestor_rows,
             separate_node: all_nodes.index(separate_node),
-            nodes: @nodes.map(&all_nodes.method(:index)),
+            nodes: @nodes.map(&all_nodes.method(:index)) - [nil],
             paragraph_node: all_nodes.index(paragraph_node(pattern_node)),
             raw_expression: @raw_expression
           }
@@ -376,9 +375,9 @@ module Sablon
           all_ancestors = ancestors
           {
             type: self.class.name,
-            ancestors: all_ancestors.is_a?(Nokogiri::XML::NodeSet) ? all_ancestors.map(&all_nodes.method(:index)) : all_ancestors,
-            ancestor_paragraphs: ancestor_paragraphs.is_a?(Nokogiri::XML::NodeSet) ? ancestor_paragraphs.map(&all_nodes.method(:index)) : ancestor_paragraphs,
-            ancestor_rows: ancestor_rows.is_a?(Nokogiri::XML::NodeSet) ? ancestor_rows.map(&all_nodes.method(:index)) : ancestor_rows,
+            ancestors: all_ancestors.is_a?(Nokogiri::XML::NodeSet) ? all_ancestors.map(&all_nodes.method(:index)) - [nil] : all_ancestors,
+            ancestor_paragraphs: ancestor_paragraphs.is_a?(Nokogiri::XML::NodeSet) ? ancestor_paragraphs.map(&all_nodes.method(:index)) - [nil] : ancestor_paragraphs,
+            ancestor_rows: ancestor_rows.is_a?(Nokogiri::XML::NodeSet) ? ancestor_rows.map(&all_nodes.method(:index)) - [nil] : ancestor_rows,
             node: all_nodes.index(@node),
             paragraph_node: all_nodes.index(paragraph_node(@node)),
             raw_expression: @raw_expression
